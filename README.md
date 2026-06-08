@@ -4,6 +4,29 @@
 
 A versatile image generation tool for AI coding agents — [Codex](https://github.com/openai/codex), [Claude Code](https://claude.ai), Cursor, and others. Powered by the [Agnes Image 2.1 Flash](https://agnes-ai.com/doc/agnes-image-21-flash) API.
 
+
+## ⚠️ Critical: Context Safety for Codex Agents (Must Read)
+
+> **Extremely important! When using this skill in Codex, the Agent MUST be told to NEVER use `view_image`!**
+
+A single 1024×768 PNG Base64-encoded is approximately **~1,000,000 characters** — enough to instantly exhaust the context window.
+
+| ❌ NEVER | ✅ ALWAYS |
+|---|---|
+| Call `view_image` on any input or output image | Verify files with `Get-Item` or `Test-Path` (file size only, never read content) |
+| Read image file contents into context | Use `scripts/describe.py` for image description (script handles internally, zero Base64 output to stdout) |
+| Generate without `--output` flag | Always use `--output <absolute-path>` to save images to disk |
+
+**One-line verification (never reads content):**
+```powershell
+Get-Item input.png | Select-Object Name, Length
+```
+
+**Describe an image (script reads internally, zero Base64 leak):**
+```bash
+python scripts/describe.py "path/to/image.jpg" --detail standard
+```
+
 ## Features
 
 - **Text-to-Image** — generate images from text prompts

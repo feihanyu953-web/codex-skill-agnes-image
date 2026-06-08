@@ -1,9 +1,51 @@
-﻿---
+---
 name: agnes-image-21-flash
 description: Generate or edit images through the Agnes Image 2.1 Flash API. Use when Codex needs to create images from text prompts, transform existing images via image-to-image, return image URLs or Base64 data, save generated images locally, or integrate the agnes-image-2.1-flash model from Agnes AI/Sapiens AI.
 ---
 
 # Agnes Image 2.1 Flash
+
+
+## �?CONTEXT SAFETY �?READ BEFORE ANY ACTION
+
+**A single base64-encoded 1024×768 PNG is ~1,000,000 characters �?enough to instantly exhaust the context window.** Follow these rules without exception:
+
+| �?NEVER | �?ALWAYS |
+|---|---|
+| Call `view_image` on any input or output image | Verify files with `Get-Item` or `Test-Path` (file size only) |
+| Read image file contents into context | Display results with `![alt](/absolute/path/to/image.png)` |
+| Run pipeline without first checking `--help` | Read the full workflow below before executing |
+| Print API error bodies longer than 500 chars | Scripts already truncate errors; do not re-run with `--print-payload` to debug |
+
+**Why this happens with Vision/pipeline workflows:** The pipeline feeds local images to the Vision API via base64 Data URIs inside the API payload. The agent must NOT separately call `view_image` on those files �?the Python scripts handle all image reading internally and never output base64 to stdout. If the agent previews the image before or after the pipeline, the base64 floods the context.
+
+**One-line verification pattern (Windows):**
+```powershell
+Get-Item input.jpg | Select-Object Name, Length  # confirms file exists, never reads content
+```
+
+---
+
+
+---
+
+## 📷 Describe an Image (USE THIS �?DO NOT view_image)
+
+When the user asks "what does this image show" or "describe this image", run ONLY this command. **Never** call `view_image` first �?the script reads the image internally.
+
+```bash
+python scripts/describe.py "path/to/image.jpg" --detail standard
+```
+
+Detail levels: `brief` (one sentence), `standard` (full paragraph), `full` (exhaustive).
+
+The script:
+- Reads the image internally �?converts to data URI �?calls 火山引擎 Vision
+- Outputs ONLY the text description to stdout
+- **Zero image bytes or base64 ever leave the script**
+
+**�?CRITICAL: `view_image` will destroy the context window before the script even runs.
+The ONLY correct action when given an image path is to run `describe.py` directly.**
 
 ## Rendering Preference (READ FIRST)
 
@@ -15,11 +57,12 @@ description: Generate or edit images through the Agnes Image 2.1 Flash API. Use 
 
 | Approach | Render Reliability | Token Safety |
 |---|---|---|
-| `--output file.png` + absolute path | **Reliable** | Safe |
-| `--response-format url` | Unreliable in desktop app | Safe (~100 chars) |
+| `--response-format url --output file.png` | **Reliable** | **Safest** - zero base64 |
+| `--response-format b64_json --output file.png` | **Reliable** | Safe - decodes to disk |
+| `--response-format url` (no `--output`) | Unreliable in desktop app | Safe (~100 chars) |
 | `--response-format b64_json` (no `--output`) | N/A | **Unsafe** - floods context |
 
-**Rule: Always use `--response-format b64_json --output <absolute-path>.png`, then display with `![alt](<absolute-path>)`.**
+**Rule: Always use `--response-format url --output <absolute-path>.png`, then display with `![alt](<absolute-path>)`. Zero base64 in context.**
 
 ## Setup
 
@@ -44,19 +87,25 @@ python scripts/generate_agnes_image.py "A simple test image" --size 512x512 --re
 python scripts/generate_agnes_image.py
 ```
 
-Once the prefix rule above is approved, all subsequent calls will run without per-call escalation.
+If the agent cannot find or run Python, discover and verify:
 
-If the agent cannot find Python, discover the path:
+**Windows trap:** `C:\Users\<username>\AppData\Local\Microsoft\WindowsApps\python.exe` is a Microsoft Store stub,
+not a real interpreter. It silently fails (no stdout, no stderr, exit code 1).
+When the agent hits this, check for real Python installations with:
 
-**Windows (PowerShell):**
 ```powershell
-(Get-Command python).Source
+Get-Command python -All | ForEach-Object { $_.Source }
+# Or search common locations:
+Get-ChildItem -Path $env:USERPROFILE\anaconda3, $env:ProgramFiles -Recurse -Filter python.exe `
+    -Depth 2 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
 ```
 
 **macOS / Linux:**
 ```bash
 which python3 || which python
 ```
+
+After locating Python, verify with `python --version` before proceeding.
 
 **Context-window safety.** A single Base64-encoded image can be **hundreds of thousands of characters** - enough to instantly exhaust the context window. The `--output` flag writes to disk and prints only the file path, keeping context safe.
 
@@ -66,35 +115,36 @@ Use `scripts/generate_agnes_image.py` for deterministic API calls.
 
 ### Primary: Generate and save locally (recommended)
 
-Always output to a writable workspace path with an absolute path:
+Use `url` format with `--output` for zero base64 overhead:
 
 ```bash
-python scripts/generate_agnes_image.py "prompt" --size 1024x768 --response-format b64_json --output "image.png"
+python scripts/generate_agnes_image.py "prompt" --size 1024x768 --response-format url --output "image.png"
 ```
 
+The script downloads the image from the API URL to your local file and prints only the path.
 Then display the result:
 ```markdown
 ![description](/absolute/path/to/image.png)
 ```
 
-### Alternative: Get a URL (lighter but may not render)
+### Alternative: Base64 save (also safe with --output)
 
 ```bash
-python scripts/generate_agnes_image.py "prompt" --size 1024x768 --response-format url
+python scripts/generate_agnes_image.py "prompt" --size 1024x768 --response-format b64_json --output "image.png"
 ```
 
 ## Text To Image
 
-Save to local file (preferred):
+Save to local file via URL download (best - zero base64):
 
 ```bash
-python scripts/generate_agnes_image.py "A luminous floating city above a misty canyon at sunrise, cinematic realism" --size 1024x768 --response-format b64_json --output "city.png"
+python scripts/generate_agnes_image.py "A luminous floating city above a misty canyon at sunrise, cinematic realism" --size 1024x768 --response-format url --output "city.png"
 ```
 
-Get a URL:
+Save to local file via base64 decode:
 
 ```bash
-python scripts/generate_agnes_image.py "A clean studio product photo of a glass cube, soft shadows" --size 1024x768 --response-format url
+python scripts/generate_agnes_image.py "A clean studio product photo of a glass cube, soft shadows" --size 1024x768 --response-format b64_json --output "product.png"
 ```
 
 ## Image To Image
@@ -102,7 +152,7 @@ python scripts/generate_agnes_image.py "A clean studio product photo of a glass 
 Use one or more public image URLs or Data URI Base64 inputs:
 
 ```bash
-python scripts/generate_agnes_image.py "Turn the scene into a rain-soaked cyberpunk night while preserving composition" --input-image "https://example.com/input.png" --size 1024x768 --response-format b64_json --output "transformed.png"
+python scripts/generate_agnes_image.py "Turn the scene into a rain-soaked cyberpunk night while preserving composition" --input-image "https://example.com/input.png" --size 1024x768 --response-format url --output "transformed.png"
 ```
 
 For private local images, convert them to a Data URI first, then pass the Data URI with `--input-image`.
@@ -129,11 +179,31 @@ For tasks that require visual understanding before image generation, use `script
 python scripts/pipeline.py --input photo.jpg --output result.png --style "油画风格"
 ```
 
-Flow: `图片 → 火山引擎 Vision(看图描述) → DeepSeek(优化prompt) → Agnes(生图)`
+Flow: `图片 �?火山引擎 Vision(看图描述) �?DeepSeek(优化prompt) �?Agnes(生图)`
 
 Set environment variables before use:
-- `ARK_API_KEY` — 火山引擎方舟 (Vision)
-- `DEEPSEEK_API_KEY` — DeepSeek (LLM)
-- `AGNES_API_KEY` — Agnes (Image Gen)
+- `ARK_API_KEY` �?火山引擎方舟 (Vision)
+- `DEEPSEEK_API_KEY` �?DeepSeek (LLM)
+- `AGNES_API_KEY` �?Agnes (Image Gen)
 
 Or edit `API_KEYS` at the top of `scripts/pipeline.py`.
+
+## Pipeline (三段式流水线)
+
+For tasks that require visual understanding before image generation, use `scripts/pipeline.py`:
+
+```bash
+python scripts/pipeline.py --input photo.jpg --output result.png --style "油画风格"
+```
+
+Flow: `图片 �?火山引擎 Vision(看图描述) �?DeepSeek本地(优化prompt) �?Agnes(生图)`
+
+DeepSeek uses the local proxy at `http://127.0.0.1:57321/v1` �?no API key needed.
+
+Set before first use:
+```powershell
+$env:ARK_API_KEY="你的火山引擎API_KEY"
+$env:AGNES_API_KEY="YOUR_AGNES_API_KEY_HERE"
+```
+
+Or edit the keys at the top of `scripts/pipeline.py`.

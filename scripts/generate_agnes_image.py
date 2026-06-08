@@ -1,20 +1,14 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Call Agnes Image 2.1 Flash for text-to-image or image-to-image generation.
 
-Supports both Codex skills and Claude Code / generic agent use.
-
-Set your API key via environment variable (recommended):
-  export AGNES_API_KEY="sk-..."        # macOS / Linux
-  $env:AGNES_API_KEY="sk-..."          # Windows PowerShell
-
-Or edit API_KEY below directly.
-
-Get a key at: https://agnes-ai.com
-
-Usage:
-  python generate_agnes_image.py "prompt" --size 1024x768 --response-format url
-  python generate_agnes_image.py "prompt" --size 1024x768 --response-format b64_json --output image.png
-  python generate_agnes_image.py "prompt" --input-image "https://..." --size 1024x768 --response-format url
+SAFETY NOTES (for Codex agents):
+- Always prefer --response-format url. URLs are short strings that won't flood
+  the context window; raw Base64 output can be megabytes and will instantly
+  exhaust your token budget.
+- When you must use b64_json, ALWAYS pair it with --output to save to a file.
+  The script will print only the file path instead of the raw Base64 data.
+- The script makes outbound HTTPS calls. If you hit a URLError / sandbox
+  failure, request a prefix-rule approval for the full script path.
 """
 
 from __future__ import annotations
@@ -22,17 +16,16 @@ from __future__ import annotations
 import argparse
 import base64
 import json
-import os
 import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 
-# Set via env var AGNES_API_KEY, or edit the fallback below.
-API_KEY = os.environ.get("AGNES_API_KEY", "YOUR_AGNES_API_KEY_HERE")
+API_KEY = "YOUR_AGNES_API_KEY_HERE"
 ENDPOINT = "https://apihub.agnes-ai.com/v1/images/generations"
 MODEL = "agnes-image-2.1-flash"
+MAX_ERROR_OUTPUT = 500  # safety: never dump full API responses into context
 
 
 def build_payload(args: argparse.Namespace) -> dict:
@@ -44,7 +37,7 @@ def build_payload(args: argparse.Namespace) -> dict:
 
     extra_body = {}
     if args.input_image:
-        extra_body["image"] = args.input_image
+        extra_body["image"] = [resolve_input_image(img) for img in args.input_image]
         extra_body["response_format"] = args.response_format
     elif args.response_format == "b64_json":
         payload["return_base64"] = True
@@ -58,12 +51,9 @@ def build_payload(args: argparse.Namespace) -> dict:
 
 
 def call_api(payload: dict, timeout: int) -> dict:
-    if API_KEY in ("YOUR_AGNES_API_KEY_HERE", ""):
+    if API_KEY == "YOUR_AGNES_API_KEY_HERE":
         raise SystemExit(
-            "No API key configured. Either:\n"
-            "  - Set the AGNES_API_KEY environment variable\n"
-            "  - Edit API_KEY in scripts/generate_agnes_image.py\n"
-            "Get a key at: https://agnes-ai.com"
+            "Replace API_KEY in scripts/generate_agnes_image.py before making live API calls."
         )
 
     request = urllib.request.Request(
@@ -81,9 +71,17 @@ def call_api(payload: dict, timeout: int) -> dict:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
+        if len(detail) > MAX_ERROR_OUTPUT:
+            detail = detail[:MAX_ERROR_OUTPUT] + '... [TRUNCATED]'
         raise SystemExit(f"HTTP {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
-        raise SystemExit(f"Request failed: {exc}") from exc
+        msg = (
+            f"Request failed: {exc}\n"
+            "This is likely a sandbox / network restriction. If running inside Codex,\n"
+            "request a prefix-rule approval for this script so outbound HTTPS to\n"
+            f"{ENDPOINT} is allowed without repeated escalation."
+        )
+        raise SystemExit(msg) from exc
 
 
 def save_base64_image(b64_json: str, output_path: Path) -> None:
@@ -91,31 +89,80 @@ def save_base64_image(b64_json: str, output_path: Path) -> None:
     output_path.write_bytes(base64.b64decode(b64_json))
 
 
+def download_image(url: str, output_path: Path) -> None:
+    """Download an image URL to a local file."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    urllib.request.urlretrieve(url, output_path)
+
+
+
+def resolve_input_image(image_input: str) -> str:
+    """Resolve --input-image: URL/Data-URI pass through; local file -> Data URI."""
+    if image_input.startswith(("http://", "https://", "data:")):
+        return image_input
+    p = Path(image_input)
+    if not p.is_file():
+        raise SystemExit(f"Input image not found: {image_input}")
+    ext = p.suffix.lower().lstrip(".")
+    mime_map = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                "webp": "image/webp", "gif": "image/gif", "bmp": "image/bmp"}
+    mime = mime_map.get(ext, "image/png")
+    b64 = base64.b64encode(p.read_bytes()).decode()
+    return f"data:{mime};base64,{b64}"
 def handle_result(result: dict, output: str | None) -> None:
     data = result.get("data") or []
     if not data:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        sys.stderr.write('[ERROR] API returned empty data array. Response (truncated):\n')
+        sys.stderr.flush()
+        result_str = json.dumps(result, ensure_ascii=False, indent=2)
+        print(result_str[:MAX_ERROR_OUTPUT])
+        if len(result_str) > MAX_ERROR_OUTPUT:
+            print('... [TRUNCATED]')
         raise SystemExit("No image data returned.")
 
     first_image = data[0]
     image_url = first_image.get("url")
     image_base64 = first_image.get("b64_json")
 
+    # URL + --output: download from remote to local (zero base64 in context!)
+    if image_url and output:
+        download_image(image_url, Path(output))
+        print(output)
+        return
+
     if image_base64 and output:
         save_base64_image(image_base64, Path(output))
         print(output)
         return
 
+    # URL only (no --output): print remote URL
     if image_url:
         print(image_url)
         return
 
     if image_base64:
+        # Raw Base64 output will flood the calling agent's context window.
+        # Emit a prominent warning to stderr so the agent can intercept it.
+        b64_len = len(image_base64)
+        sys.stderr.write(
+            f"[WARNING] About to print {b64_len:,}-char Base64 image to stdout.\n"
+            "This will likely exhaust your context window. Next time use:\n"
+            "  --response-format url       (preferred - short URL string)\n"
+            "  --response-format b64_json --output image.png  (saves to file, prints path only)\n"
+        )
+        sys.stderr.flush()
         print(image_base64)
         return
 
+    # Neither url nor b64_json in data[0] — unexpected API response format
+    sys.stderr.write(
+        "[ERROR] API returned data[0] but neither 'url' nor 'b64_json' was present.\n"
+        "Full response dumped below. The API may have changed its output schema,\n"
+        "or the request may have triggered an error inside 'data'.\n"
+    )
+    sys.stderr.flush()
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    raise SystemExit("API returned data but no url or b64_json field found.")
+    raise SystemExit(1)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -127,23 +174,23 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--input-image",
         action="append",
-        help="Public image URL or Data URI Base64 input. Repeat for multiple images.",
+        help="Image input: URL, Data URI, or local file path (auto-converted). Repeat for multiple images.",
     )
     parser.add_argument(
         "--response-format",
         choices=("url", "b64_json"),
         default="url",
-        help="url (short) or b64_json (use with --output to save to file).",
+        help="url (recommended: pair with --output for local save) or b64_json (pair with --output).",
     )
     parser.add_argument(
         "--output",
-        help="Save Base64 image to this file path.",
+        help="Save image to this local file path. Works with both url and b64_json. Prints only the path, never raw data.",
     )
     parser.add_argument(
         "--timeout",
         type=int,
         default=180,
-        help="HTTP timeout in seconds (60-360 recommended).",
+        help="HTTP timeout in seconds. Official docs suggest 60-360 seconds.",
     )
     parser.add_argument(
         "--print-payload",

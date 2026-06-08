@@ -1,4 +1,6 @@
-﻿# Codex Skill: Agnes Image 2.1 Flash
+﻿[中文文档](README_CN.md) | [English](README.md)
+
+# Codex Skill: Agnes Image 2.1 Flash
 
 A versatile image generation tool for AI coding agents — [Codex](https://github.com/openai/codex), [Claude Code](https://claude.ai), Cursor, and others. Powered by the [Agnes Image 2.1 Flash](https://agnes-ai.com/doc/agnes-image-21-flash) API.
 
@@ -80,3 +82,4 @@ See [`references/api.md`](references/api.md) for full request/response schemas.
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
+

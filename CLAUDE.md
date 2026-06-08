@@ -1,48 +1,53 @@
 ﻿# Agnes Image 2.1 Flash — Claude Code Usage
 
-This project provides a Python script for image generation via the Agnes Image 2.1 Flash API. It works with any AI coding agent (Codex, Claude Code, Cursor, etc.).
+This project provides image generation tools via the Agnes Image 2.1 Flash API. Works with any AI coding agent.
 
-## Quick Start for Claude Code
+## Tools
 
-You have two ways to generate images:
+| Script | Purpose |
+|---|---|
+| `scripts/generate_agnes_image.py` | 文生图 / 图生图 |
+| `scripts/pipeline.py` | 三段式流水线: 看图 → 分析 → 生图 |
 
-### 1. Use `generate_agnes_image.py` directly
+## Quick Start
+
+### 1. 单步生图
+
 ```bash
 python scripts/generate_agnes_image.py "prompt" --size 1024x768 --response-format url
 ```
 
-### 2. Configure API key once (recommended)
-Set the environment variable so you don"t repeat it every time:
+### 2. 三段式流水线
+
+```bash
+# 上传图片 → 视觉分析 → LLM优化prompt → 生图
+python scripts/pipeline.py --input photo.jpg --output result.png --style "油画风格"
+
+# 跳过视觉分析，直接用文字 prompt
+python scripts/pipeline.py --input photo.jpg --skip-vision --style "cyberpunk night style"
 ```
-export AGNES_API_KEY="sk-..."   # macOS / Linux
-$env:AGNES_API_KEY="sk-..."     # Windows PowerShell
+
+## API Key 配置
+
+```bash
+export ARK_API_KEY="..."      # 火山引擎方舟 (视觉)
+export DEEPSEEK_API_KEY="..." # DeepSeek (LLM 优化)
+export AGNES_API_KEY="..."    # Agnes (生图)
 ```
-Then the script auto-detects it. The hardcoded fallback in the script can stay as-is.
+
+或在 `scripts/pipeline.py` 顶部直接编辑 `API_KEYS` 字典。
+
+## Pipeline 架构
+
+```
+图片 → 火山引擎 Vision → 文字描述 → DeepSeek 优化 → Agnes 生图
+```
 
 ## Commands Cheat Sheet
 
 | Task | Command |
 |---|---|
-| Generate image (URL output) | `python scripts/generate_agnes_image.py "PROMPT" --size WxH --response-format url` |
-| Generate + save locally | `python scripts/generate_agnes_image.py "PROMPT" --size WxH --response-format b64_json --output PATH` |
-| Image-to-image | Add `--input-image "URL"` to either command above |
-| Preview payload (dry run) | Add `--print-payload` |
-
-## How to tell Claude Code to generate an image
-
-Just ask naturally, for example:
-- "生成一张漂浮在城市上空的城堡图片"
-- "Generate an image of a cat in space and save it to cat.png"
-
-Claude Code will run the Python script via shell and display the result.
-
-## API Reference
-
-See `references/api.md` for full request/response schemas, supported sizes, and troubleshooting.
-
-## Key Rules
-
-- Model: `agnes-image-2.1-flash`
-- Endpoint: `https://apihub.agnes-ai.com/v1/images/generations`
-- Always prefer URL output (lightweight) over Base64 unless saving locally
-- Image-to-image requires public image URLs or Data URIs
+| 单步生图 | `python scripts/generate_agnes_image.py "PROMPT" --size WxH --response-format url` |
+| 流水线生图 | `python scripts/pipeline.py -i INPUT -o OUTPUT -s "STYLE"` |
+| 图生图 | `python scripts/generate_agnes_image.py "PROMPT" --input-image "URL" --size WxH` |
+| 查询模型列表 | 见 `references/api.md` |

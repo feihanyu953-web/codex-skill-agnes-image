@@ -53,6 +53,24 @@ $env:AGNES_API_KEY="sk-..."
 **Option B — Edit the script:**
 Open `scripts/generate_agnes_image.py` and replace `YOUR_AGNES_API_KEY_HERE`.
 
+## Pipeline (三段式流水线)
+
+New in this release: `scripts/pipeline.py` — a three-stage pipeline:
+
+```
+图片 → 火山引擎 Vision(看图描述) → DeepSeek(优化prompt) → Agnes(生图)
+```
+
+```bash
+# Set API keys
+export ARK_API_KEY="..."
+export DEEPSEEK_API_KEY="..."
+export AGNES_API_KEY="..."
+
+# Run
+python scripts/pipeline.py --input photo.jpg --output result.png --style "油画风格"
+```
+
 ## Quick Start
 
 ```bash
@@ -82,4 +100,5 @@ See [`references/api.md`](references/api.md) for full request/response schemas.
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
+
 

@@ -51,6 +51,24 @@ $env:AGNES_API_KEY="sk-..."
 **方式 B — 直接修改脚本：**
 打开 `scripts/generate_agnes_image.py`，将 `YOUR_AGNES_API_KEY_HERE` 替换为你的 Key。
 
+## Pipeline（三段式流水线）
+
+新增 `scripts/pipeline.py` —— 三段式流水线：
+
+```
+图片 → 火山引擎 Vision（看图描述）→ DeepSeek（优化 prompt）→ Agnes（生图）
+```
+
+```bash
+# 设置 API Key
+export ARK_API_KEY="..."
+export DEEPSEEK_API_KEY="..."
+export AGNES_API_KEY="..."
+
+# 运行
+python scripts/pipeline.py --input photo.jpg --output result.png --style "油画风格"
+```
+
 ## 快速上手
 
 ```bash
@@ -80,3 +98,4 @@ python scripts/generate_agnes_image.py "将场景变为雨夜赛博朋克风格�
 ## 开源协议
 
 MIT — 详见 [LICENSE](LICENSE)。
+

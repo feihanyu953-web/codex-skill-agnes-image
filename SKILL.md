@@ -24,7 +24,12 @@ description: Generate or edit images through the Agnes Image 2.1 Flash API. Use 
 ## Setup
 
 1. **Get an API key** from [Agnes AI](https://agnes-ai.com).
-2. Open `scripts/generate_agnes_image.py` and replace `YOUR_AGNES_API_KEY_HERE` with your key.
+2. Set it via environment variable (recommended):
+
+   **Windows (PowerShell):** `$env:AGNES_API_KEY="sk-..."`
+   **macOS / Linux:** `export AGNES_API_KEY="sk-..."`
+
+   Or edit `scripts/generate_agnes_image.py` and replace `YOUR_AGNES_API_KEY_HERE`.
 3. Run a quick test:
 
 ```bash

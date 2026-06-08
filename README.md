@@ -1,22 +1,29 @@
 ﻿# Codex Skill: Agnes Image 2.1 Flash
 
-A [Codex](https://github.com/openai/codex) skill for generating and editing images via the [Agnes Image 2.1 Flash](https://agnes-ai.com/doc/agnes-image-21-flash) API.
+A versatile image generation tool for AI coding agents — [Codex](https://github.com/openai/codex), [Claude Code](https://claude.ai), Cursor, and others. Powered by the [Agnes Image 2.1 Flash](https://agnes-ai.com/doc/agnes-image-21-flash) API.
 
 ## Features
 
 - **Text-to-Image** — generate images from text prompts
 - **Image-to-Image** — transform existing images with new styles or edits
 - **URL or Base64 output** — choose lightweight URLs or save to local files
-- **Sandbox-safe** — designed to work inside Codex's approval and context-window constraints
+- **Cross-agent compatible** — works with Codex (SKILL.md), Claude Code (CLAUDE.md), or any agent that can run shell commands
 
 ## Installation
 
-### Via Codex skill-installer
+### Codex (skill-installer)
 
-```bash
-# In Codex, ask the agent:
+```
 "Install agnes-image-21-flash from feihanyu953-web/codex-skill-agnes-image"
 ```
+
+### Claude Code / Cursor / Any Agent
+
+```bash
+git clone https://github.com/feihanyu953-web/codex-skill-agnes-image.git
+```
+
+Then tell your agent to read `CLAUDE.md` or `SKILL.md` for usage instructions.
 
 ### Manual install
 
@@ -26,8 +33,23 @@ git clone https://github.com/feihanyu953-web/codex-skill-agnes-image.git "$CODEX
 
 ## Setup
 
-1. Get an API key from [Agnes AI](https://agnes-ai.com).
-2. Open `scripts/generate_agnes_image.py` and replace `YOUR_AGNES_API_KEY_HERE` with your key.
+### 1. Get an API key
+Sign up at [Agnes AI](https://agnes-ai.com) and get your key.
+
+### 2. Configure the key
+
+**Option A — Environment variable (recommended, works everywhere):**
+
+```bash
+# macOS / Linux
+export AGNES_API_KEY="sk-..."
+
+# Windows PowerShell
+$env:AGNES_API_KEY="sk-..."
+```
+
+**Option B — Edit the script:**
+Open `scripts/generate_agnes_image.py` and replace `YOUR_AGNES_API_KEY_HERE`.
 
 ## Quick Start
 
@@ -41,6 +63,15 @@ python scripts/generate_agnes_image.py "A clean product photo of a glass cube" -
 # Image-to-image transformation
 python scripts/generate_agnes_image.py "Turn into a rain-soaked cyberpunk night" --input-image "https://example.com/photo.png" --size 1024x768 --response-format b64_json --output result.png
 ```
+
+## Agent Compatibility
+
+| Agent | Config File | How It Works |
+|---|---|---|
+| **Codex** | `SKILL.md` | Install via skill-installer, auto-available as `$agnes-image-21-flash` |
+| **Claude Code** | `CLAUDE.md` | Clone repo, Claude Code reads CLAUDE.md automatically |
+| **Cursor / Windsurf** | — | Run `python scripts/generate_agnes_image.py` directly |
+| **Any shell** | — | Standard Python CLI, no agent required |
 
 ## API Reference
 

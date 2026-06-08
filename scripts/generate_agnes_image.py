@@ -1,7 +1,14 @@
 ﻿#!/usr/bin/env python3
 """Call Agnes Image 2.1 Flash for text-to-image or image-to-image generation.
 
-Set your API key in API_KEY below before running.
+Supports both Codex skills and Claude Code / generic agent use.
+
+Set your API key via environment variable (recommended):
+  export AGNES_API_KEY="sk-..."        # macOS / Linux
+  $env:AGNES_API_KEY="sk-..."          # Windows PowerShell
+
+Or edit API_KEY below directly.
+
 Get a key at: https://agnes-ai.com
 
 Usage:
@@ -15,13 +22,15 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 
-API_KEY = "YOUR_AGNES_API_KEY_HERE"
+# Set via env var AGNES_API_KEY, or edit the fallback below.
+API_KEY = os.environ.get("AGNES_API_KEY", "YOUR_AGNES_API_KEY_HERE")
 ENDPOINT = "https://apihub.agnes-ai.com/v1/images/generations"
 MODEL = "agnes-image-2.1-flash"
 
@@ -49,10 +58,12 @@ def build_payload(args: argparse.Namespace) -> dict:
 
 
 def call_api(payload: dict, timeout: int) -> dict:
-    if API_KEY == "YOUR_AGNES_API_KEY_HERE":
+    if API_KEY in ("YOUR_AGNES_API_KEY_HERE", ""):
         raise SystemExit(
-            "Replace API_KEY in scripts/generate_agnes_image.py with your Agnes AI API key.\n"
-            "Get one at: https://agnes-ai.com"
+            "No API key configured. Either:\n"
+            "  - Set the AGNES_API_KEY environment variable\n"
+            "  - Edit API_KEY in scripts/generate_agnes_image.py\n"
+            "Get a key at: https://agnes-ai.com"
         )
 
     request = urllib.request.Request(

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agnes Image 2.1 Flash"
+  short_description: "Generate images with Agnes Image 2.1 Flash API."
+  default_prompt: "Use $agnes-image-21-flash to generate an image from a text prompt."

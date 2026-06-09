@@ -79,13 +79,12 @@ $env:AGNES_API_KEY="sk-..."
 新增 `scripts/pipeline.py` —— 三段式流水线：
 
 ```
-图片 → 火山引擎 Vision（看图描述）→ DeepSeek（优化 prompt）→ Agnes（生图）
+图片 → 火山引擎 Vision（看图描述）→ LLM（优化 prompt）→ Agnes（生图）
 ```
 
 ```bash
 # 设置 API Key
 export ARK_API_KEY="..."
-export DEEPSEEK_API_KEY="..."
 export AGNES_API_KEY="..."
 
 # 运行

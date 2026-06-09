@@ -81,13 +81,12 @@ Open `scripts/generate_agnes_image.py` and replace `YOUR_AGNES_API_KEY_HERE`.
 New in this release: `scripts/pipeline.py` — a three-stage pipeline:
 
 ```
-图片 → 火山引擎 Vision(看图描述) → DeepSeek(优化prompt) → Agnes(生图)
+图片 → 火山引擎 Vision(看图描述) → LLM(优化prompt) → Agnes(生图)
 ```
 
 ```bash
 # Set API keys
 export ARK_API_KEY="..."
-export DEEPSEEK_API_KEY="..."
 export AGNES_API_KEY="..."
 
 # Run

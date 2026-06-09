@@ -3,15 +3,21 @@
 pipeline.py  —— 三段式流水线
 
 流程:
-  输入图片 → 火山引擎视觉模型(看图描述) → DeepSeek本地(分析优化) → Agnes(生图)
+  输入图片 → 火山引擎视觉模型(看图描述) → LLM(分析优化prompt) → Agnes(生图)
 
 用法:
   python scripts/pipeline.py --input photo.jpg --output result.png
   python scripts/pipeline.py --input https://example.com/photo.jpg --style "油画风格"
 
 环境变量 (也可直接编辑下方 API_KEYS):
-  ARK_API_KEY       火山引擎方舟 API Key
-  AGNES_API_KEY     Agnes Image API Key (本地 DeepSeek 无需 Key)
+  ARK_API_KEY       火山引擎方舟 API Key (Vision)
+  AGNES_API_KEY     Agnes Image API Key
+  LLM_BASE_URL      LLM API 地址 (默认: 本地 DeepSeek http://127.0.0.1:57321/v1)
+  LLM_MODEL         LLM 模型名 (默认: deepseek-v4-pro)
+  LLM_API_KEY       LLM API Key (本地服务无需设置)
+
+注意: 在 Codex 中使用时，prompt 优化由 Codex 内置大模型完成，
+无需额外配置 LLM 步骤。本脚本的 LLM 步骤仅用于独立运行场景。
 """
 
 from __future__ import annotations
@@ -32,13 +38,15 @@ from pathlib import Path
 API_KEYS = {
     # 火山引擎方舟 → https://console.volcengine.com/ark
     "ark": os.environ.get("ARK_API_KEY", "YOUR_ARK_API_KEY_HERE"),
-    # Agnes Image → 见 scripts/generate_agnes_image.py
+    # Agnes Image
     "agnes": os.environ.get("AGNES_API_KEY", "YOUR_AGNES_API_KEY_HERE"),
 }
 
-# DeepSeek 本地代理 (config.toml base_url, 无需 API Key)
-DEEPSEEK_BASE = "http://127.0.0.1:57321/v1"
-DEEPSEEK_MODEL = "deepseek-v4-pro"
+# LLM 配置 (用于 prompt 优化步骤，支持任意 OpenAI 兼容 API)
+# 默认指向本地 DeepSeek 代理，可通过环境变量覆盖
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://127.0.0.1:57321/v1")
+LLM_MODEL    = os.environ.get("LLM_MODEL", "deepseek-v4-pro")
+LLM_API_KEY  = os.environ.get("LLM_API_KEY", "no-key-needed")
 
 # 火山引擎
 ARK_BASE     = "https://ark.cn-beijing.volces.com/api/v3"
@@ -80,13 +88,13 @@ def describe_image(image_input: str) -> str:
 
 
 # ───────────────────────────────────────────────────────────
-# 第二步: 分析优化 (DeepSeek 本地代理)
+# 第二步: Prompt 优化 (LLM — 默认本地 DeepSeek，可配置)
 # ───────────────────────────────────────────────────────────
 def optimize_prompt(description: str, user_instruction: str) -> str:
-    """用本地 DeepSeek 根据图片描述和用户指令，生成优化的图片生成 prompt。"""
+    """用 LLM 根据图片描述和用户指令，生成优化的图片生成 prompt。"""
     system_prompt = (
-        "你是一个专业的 AI 绘图提示词工程师。用户会提供一张图片的文字描述和修改需求，"
-        "你需要生成一个用于 AI 图片生成的英文 prompt。要求："
+        "你是一个专业的 AI 绘图提示词工程师。用户会提供一张图片的文字描述和修改需求，
+        "你需要生成一个用于 AI 图片生成的英文 prompt。要求：
         "1) 用英文输出 2) 包含主体、环境、风格、光照、构图、质量关键词 "
         "3) 长度 50-150 词 4) 只输出 prompt 本身，不要加任何解释。"
     )
@@ -97,7 +105,7 @@ def optimize_prompt(description: str, user_instruction: str) -> str:
     )
 
     payload = {
-        "model": DEEPSEEK_MODEL,
+        "model": LLM_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text},
@@ -107,8 +115,8 @@ def optimize_prompt(description: str, user_instruction: str) -> str:
     }
 
     result = _call_api(
-        f"{DEEPSEEK_BASE}/chat/completions",
-        "no-key-needed",
+        f"{LLM_BASE_URL}/chat/completions",
+        LLM_API_KEY,
         payload,
     )
     msg = result["choices"][0]["message"]; return (msg.get("content") or msg.get("reasoning_content") or "").strip()
@@ -117,8 +125,8 @@ def optimize_prompt(description: str, user_instruction: str) -> str:
 # ───────────────────────────────────────────────────────────
 # 第三步: 图片生成 (Agnes)
 # ───────────────────────────────────────────────────────────
-def generate_image(prompt: str, size: str, output_path: str | None) -> str:
-    """用 Agnes Image 2.1 Flash 生成图片。"""
+def generate_image(prompt: str, size: str, output_path: str | None = None) -> str:
+    """调用 Agnes API 生成图片。"""
     payload = {
         "model": AGNES_MODEL,
         "prompt": prompt,
@@ -224,12 +232,12 @@ def main() -> int:
         print(f"\n{sep}\n Step 1: Skip vision analysis\n{sep}")
         print(f"  Using: {description[:80]}...")
     else:
-        print(f"\n{sep}\n Step 1: Vision analysis (Volcengine)\n{sep}")
+        print(f"\n{sep}\n Step 1: Vision analysis (Volcengine Ark)\n{sep}")
         print(f"  Analyzing: {args.input}")
         description = describe_image(args.input)
         print(f"  Description: {description[:200]}...")
 
-    print(f"\n{sep}\n Step 2: Prompt optimization (DeepSeek local)\n{sep}")
+    print(f"\n{sep}\n Step 2: Prompt optimization (LLM: {LLM_MODEL})\n{sep}")
     optimized = optimize_prompt(description, args.style)
     print(f"  Optimized:\n  {optimized}")
 
@@ -242,3 +250,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

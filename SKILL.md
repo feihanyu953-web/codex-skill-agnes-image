@@ -171,22 +171,6 @@ For private local images, convert them to a Data URI first, then pass the Data U
 
 Read `references/api.md` when you need exact request/response shapes, output locations, or troubleshooting notes.
 
-## Pipeline (三段式流水线)
-
-For tasks that require visual understanding before image generation, use `scripts/pipeline.py`:
-
-```bash
-python scripts/pipeline.py --input photo.jpg --output result.png --style "油画风格"
-```
-
-Flow: `图片 �?火山引擎 Vision(看图描述) �?DeepSeek(优化prompt) �?Agnes(生图)`
-
-Set environment variables before use:
-- `ARK_API_KEY` �?火山引擎方舟 (Vision)
-- `DEEPSEEK_API_KEY` �?DeepSeek (LLM)
-- `AGNES_API_KEY` �?Agnes (Image Gen)
-
-Or edit `API_KEYS` at the top of `scripts/pipeline.py`.
 
 ## Pipeline (三段式流水线)
 
@@ -196,9 +180,15 @@ For tasks that require visual understanding before image generation, use `script
 python scripts/pipeline.py --input photo.jpg --output result.png --style "油画风格"
 ```
 
-Flow: `图片 �?火山引擎 Vision(看图描述) �?DeepSeek本地(优化prompt) �?Agnes(生图)`
+Flow: `图片 → 火山引擎 Vision(看图描述) → LLM(优化prompt) → Agnes(生图)`
 
-DeepSeek uses the local proxy at `http://127.0.0.1:57321/v1` �?no API key needed.
+The LLM step uses any OpenAI-compatible API (default: local DeepSeek proxy).
+In Codex, prompt optimization is handled by the built-in model — no separate LLM setup needed.
+
+**LLM configuration (environment variables, optional):**
+- `LLM_BASE_URL` — LLM API endpoint (default: `http://127.0.0.1:57321/v1`)
+- `LLM_MODEL` — LLM model name (default: `deepseek-v4-pro`)
+- `LLM_API_KEY` — LLM API key (not needed for local services)
 
 Set before first use:
 ```powershell
